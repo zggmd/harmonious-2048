@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2048 爱国版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            /* 深色主题 (默认) */
+            --page-bg: rgba(4, 13, 19, 0.86);
+            --text-color: #e0e0e0;
+            --header-text-color: #f0f0f0;
+            --board-bg: #3a3a3c;
+            --cell-bg: #58585a;
+            --button-bg: #007aff;
+            --button-text-color: #ffffff;
+            --button-hover-bg: #005bb5;
+            --score-box-bg: #2c2c2e;
+            --score-label-color: #a0a0a5;
+            --score-value-color: #ffffff;
+            --modal-bg: #2c2c2e;
+            --modal-text-color: #e0e0e0;
+            --modal-header-color: #f0f0f0;
+            --theme-button-bg: #58585a; /* 用于旧按钮，菜单按钮使用Tailwind */
+            --theme-button-text: #e0e0e0;
+            --theme-button-hover-bg: #6c6c6e;
+            --settings-icon-color: var(--text-color);
+            --settings-menu-bg: #2c2c2e; /* 深色菜单背景 */
+            --settings-menu-text-color: var(--text-color);
+            --settings-menu-hover-bg: #3a3a3c; /* 深色菜单悬停背景 */
+
+
+            --tile-2-bg: #776e65; --tile-2-text: #f9f6f2;
+            --tile-4-bg: #776e65; --tile-4-text: #f9f6f2;
+            --tile-8-bg: #f2b179; --tile-8-text: #f9f6f2;
+            --tile-16-bg: #f59563; --tile-16-text: #f9f6f2;
+            --tile-32-bg: #f67c5f; --tile-32-text: #f9f6f2;
+            --tile-64-bg: #f65e3b; --tile-64-text: #f9f6f2;
+            --tile-128-bg: #edcf72; --tile-128-text: #f9f6f2;
+            --tile-256-bg: #edcc61; --tile-256-text: #f9f6f2;
+            --tile-512-bg: #edc850; --tile-512-text: #f9f6f2;
+            --tile-1024-bg: #edc53f; --tile-1024-text: #f9f6f2;
+            --tile-2048-bg: #edc22e; --tile-2048-text: #f9f6f2;
+            --tile-higher-bg: #3c3a32; --tile-higher-text: #f9f6f2;
+        }
+
+        body.light-theme {
+            --page-bg: #eee4da;
+            --text-color: #333333;
+            --header-text-color: #111111;
+            --board-bg: #bbada0;
+            --cell-bg: #cdc1b4;
+            --button-bg: #f59563;
+            --button-text-color: #ffffff;
+            --button-hover-bg: #f2834f;
+            --score-box-bg: #bbada0;
+            --score-label-color: #eee4da;
+            --score-value-color: #ffffff;
+            --modal-bg: #f9f6f2;
+            --modal-text-color: #776e65;
+            --modal-header-color: #776e65;
+            --theme-button-bg: #bbada0;
+            --theme-button-text: #776e65;
+            --theme-button-hover-bg: #caaead;
+            --settings-icon-color: var(--text-color);
+            --settings-menu-bg: #ffffff; /* 浅色菜单背景 */
+            --settings-menu-text-color: var(--text-color);
+            --settings-menu-hover-bg: #f3f4f6; /* 浅色菜单悬停背景 (Tailwind gray-100) */
+
+
+            --tile-2-bg: #eee4da; --tile-2-text: #776e65;
+            --tile-4-bg: #ede0c8; --tile-4-text: #776e65;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+            background-color: var(--page-bg);
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .main-header { color: var(--header-text-color); }
+        .score-box { background-color: var(--score-box-bg); }
+        .score-label { color: var(--score-label-color); }
+        .score-value { color: var(--score-value-color); }
+
+        .action-button {
+            background-color: var(--button-bg);
+            color: var(--button-text-color);
+            transition: background-color 0.2s ease;
+        }
+        .action-button:hover { background-color: var(--button-hover-bg); }
+
+        .grid-cell-bg {
+            background-color: var(--cell-bg);
+            border-radius: 6px;
+        }
+        .grid-container {
+            gap: 8px;
+            background-color: var(--board-bg);
+            padding: 8px;
+            border-radius: 6px;
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+        }
+        .tile {
+            position: absolute;
+            width: calc(25% - 8px);
+            height: calc(25% - 8px);
+            border-radius: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            font-weight: bold;
+            box-sizing: border-box;
+            transition: transform 0.1s ease-in-out, opacity 0.1s ease-in-out, background-color 0.1s ease-in-out;
+            z-index: 2;
+        }
+        .tile-inner {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: inherit;
+        }
+
+        .tile-2 .tile-inner { background-color: var(--tile-2-bg); color: var(--tile-2-text); }
+        .tile-4 .tile-inner { background-color: var(--tile-4-bg); color: var(--tile-4-text); }
+        .tile-8 .tile-inner { background-color: var(--tile-8-bg); color: var(--tile-8-text); }
+        .tile-16 .tile-inner { background-color: var(--tile-16-bg); color: var(--tile-16-text); }
+        .tile-32 .tile-inner { background-color: var(--tile-32-bg); color: var(--tile-32-text); }
+        .tile-64 .tile-inner { background-color: var(--tile-64-bg); color: var(--tile-64-text); }
+        .tile-128 .tile-inner { background-color: var(--tile-128-bg); color: var(--tile-128-text); font-size: 1.8rem; }
+        .tile-256 .tile-inner { background-color: var(--tile-256-bg); color: var(--tile-256-text); font-size: 1.8rem; }
+        .tile-512 .tile-inner { background-color: var(--tile-512-bg); color: var(--tile-512-text); font-size: 1.8rem; }
+        .tile-1024 .tile-inner { background-color: var(--tile-1024-bg); color: var(--tile-1024-text); font-size: 1.5rem; }
+        .tile-2048 .tile-inner { background-color: var(--tile-2048-bg); color: var(--tile-2048-text); font-size: 1.5rem; }
+        .tile-4096 .tile-inner, .tile-8192 .tile-inner, .tile-default .tile-inner { background-color: var(--tile-higher-bg); color: var(--tile-higher-text); font-size: 1.5rem; }
+
+        .tile.new-tile { animation: newTileAnimation 0.2s ease-in-out; }
+        .tile.merged-tile { animation: mergedTileAnimation 0.2s ease-in-out; z-index: 3; }
+        @keyframes newTileAnimation {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes mergedTileAnimation {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        @media (max-width: 400px) {
+            .tile { font-size: 1.5rem; }
+            .tile-128 .tile-inner, .tile-256 .tile-inner, .tile-512 .tile-inner { font-size: 1.3rem; }
+            .tile-1024 .tile-inner, .tile-2048 .tile-inner, .tile-default .tile-inner { font-size: 1.1rem; }
+        }
+        .game-over-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); display: flex;
+            justify-content: center; align-items: center; z-index: 100;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .game-over-modal.show { opacity: 1; visibility: visible; }
+        .game-over-content {
+            background-color: var(--modal-bg); padding: 30px; border-radius: 10px;
+            text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.2);
+        }
+        .game-over-content h2 { font-size: 2rem; color: var(--modal-header-color); margin-bottom: 15px; }
+        .game-over-content p { font-size: 1.2rem; color: var(--modal-text-color); margin-bottom: 25px; }
+
+        #fireworks-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 4; overflow: hidden;
+        }
+        .firework-particle {
+            position: absolute;
+            will-change: transform, opacity;
+        }
+        .normal-firework-particle {
+            border-radius: 50%;
+        }
+        .harmonious-text-particle {
+            font-size: 1.6rem;
+            font-weight: bold;
+            text-shadow: 0 0 3px rgba(0,0,0,0.2);
+            white-space: nowrap;
+            padding: 1px 3px;
+            z-index: 5;
+        }
+
+        /* 设置菜单样式 */
+        #settings-container {
+            position: fixed;
+            top: 1rem; /* 16px */
+            right: 1rem; /* 16px */
+            z-index: 50;
+        }
+        #settings-gear-button svg {
+            stroke: var(--settings-icon-color);
+            transition: transform 0.3s ease;
+        }
+        #settings-gear-button.open svg {
+            transform: rotate(90deg);
+        }
+        #settings-menu {
+            background-color: var(--settings-menu-bg);
+            color: var(--settings-menu-text-color);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+        }
+        #settings-menu.hidden {
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+        }
+        .settings-menu-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 0.5rem 1rem; /* 8px 16px */
+            font-size: 0.875rem; /* 14px */
+            line-height: 1.25rem; /* 20px */
+            transition: background-color 0.15s ease-in-out;
+        }
+        .settings-menu-item:hover {
+            background-color: var(--settings-menu-hover-bg);
+        }
+
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+<div id="settings-container">
+    <button id="settings-gear-button" class="p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--button-bg)]" aria-label="设置">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        </svg>
+    </button>
+    <div id="settings-menu" class="hidden absolute right-0 mt-2 w-48 rounded-md py-1 origin-top-right">
+        <button id="menu-theme-toggle-button" class="settings-menu-item">
+        </button>
+        <button id="menu-firework-toggle-button" class="settings-menu-item">
+        </button>
+    </div>
+</div>
+
+<div class="text-center mb-6 pt-16"> <h1 class="text-5xl font-bold main-header">2048 爱国版</h1>
+    <div class="mt-4 flex items-center justify-center space-x-4 md:space-x-8">
+        <div class="score-box p-3 rounded-lg shadow">
+            <span class="text-sm score-label">分数</span>
+            <div id="score" class="text-2xl font-bold score-value">0</div>
+        </div>
+        <div class="score-box p-3 rounded-lg shadow">
+            <span class="text-sm score-label">最高分</span>
+            <div id="best-score" class="text-2xl font-bold score-value">0</div>
+        </div>
+    </div>
+</div>
+
+<div id="game-board" class="grid-container mb-6">
+    <div id="fireworks-container"></div>
+</div>
+
+<button id="reset-button" class="action-button font-bold py-3 px-6 rounded-lg shadow text-lg transition duration-150 ease-in-out mb-3">
+    重新开始
+</button>
+<div id="game-over-modal" class="game-over-modal">
+    <div class="game-over-content">
+        <h2 id="game-over-title">游戏结束!</h2>
+        <p id="game-over-message">你没有更多可移动的步数了。</p>
+        <button id="restart-game-button" class="action-button font-bold py-2 px-4 rounded-lg transition duration-150 ease-in-out">
+            再玩一次
+        </button>
+    </div>
+</div>
+
+<script>
+  const gameBoard = document.getElementById('game-board');
+  const scoreDisplay = document.getElementById('score');
+  const bestScoreDisplay = document.getElementById('best-score');
+  const resetButton = document.getElementById('reset-button');
+
+  const settingsGearButton = document.getElementById('settings-gear-button');
+  const settingsMenu = document.getElementById('settings-menu');
+  const menuThemeToggleButton = document.getElementById('menu-theme-toggle-button');
+  const menuFireworkToggleButton = document.getElementById('menu-firework-toggle-button');
+
+  const gameOverModal = document.getElementById('game-over-modal');
+  const gameOverTitle = document.getElementById('game-over-title');
+  const gameOverMessage = document.getElementById('game-over-message');
+  const restartGameButton = document.getElementById('restart-game-button');
+  const fireworksContainer = document.getElementById('fireworks-container');
+
+  const gridSize = 4;
+  let grid = [];
+  let score = 0;
+  let bestScore = localStorage.getItem('bestScore2048_ssz') ? parseInt(localStorage.getItem('bestScore2048_ssz')) : 0;
+  let currentTheme = localStorage.getItem('theme2048_ssz') || 'light';
+  let currentFireworkType = localStorage.getItem('fireworkType2048_ssz') || 'harmonious';
+
+  const coreSocialistValues = ["富强", "民主", "文明", "和谐", "自由", "平等", "公正", "法治", "爱国", "敬业", "诚信", "友善"];
+  const harmoniousParticleColors = ['#FF7EB9', '#FFB74D', '#AED581', '#4FC3F7', '#BA68C8', '#FFF176', '#FF8A65', '#7986CB', '#F06292', '#FFD54F', '#81C784', '#64B5F6'];
+
+  let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
+  let backgroundCellElements = [];
+
+  let activeFireworkParticles = [];
+  let fireworkAnimationId = null;
+  const GRAVITY = 0.12;
+  const PARTICLE_FADE_DURATION = 500;
+
+  function applyTheme(theme) {
+    document.body.className = theme === 'light' ? 'light-theme flex flex-col items-center justify-center min-h-screen p-4' : 'flex flex-col items-center justify-center min-h-screen p-4';
+    menuThemeToggleButton.textContent = theme === 'light' ? '切换到深色主题' : '切换到浅色主题';
+    localStorage.setItem('theme2048_ssz', theme);
+    currentTheme = theme;
+  }
+
+  function toggleTheme() {
+    applyTheme(currentTheme === 'light' ? 'dark' : 'light');
+  }
+
+  function applyFireworkType(type) {
+    menuFireworkToggleButton.textContent = type === 'harmonious' ? '切换到普通烟花' : '切换到和谐烟花';
+    localStorage.setItem('fireworkType2048_ssz', type);
+    currentFireworkType = type;
+  }
+
+  function toggleFireworkType() {
+    applyFireworkType(currentFireworkType === 'harmonious' ? 'normal' : 'harmonious');
+  }
+
+  function createBackgroundGrid() {
+    backgroundCellElements = [];
+    Array.from(gameBoard.childNodes).forEach(child => {
+      if (child.id !== 'fireworks-container') child.remove();
+    });
+    for (let i = 0; i < gridSize * gridSize; i++) {
+      const cell = document.createElement('div');
+      cell.classList.add('grid-cell-bg');
+      gameBoard.insertBefore(cell, fireworksContainer);
+      backgroundCellElements.push(cell);
+    }
+  }
+
+  function initGame() {
+    grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(0));
+    score = 0;
+    updateScoreDisplay();
+    updateBestScoreDisplay();
+    gameBoard.querySelectorAll('.tile').forEach(tile => tile.remove());
+    if (backgroundCellElements.length === 0) createBackgroundGrid();
+    addRandomTile();
+    addRandomTile();
+    renderBoard();
+    gameOverModal.classList.remove('show');
+  }
+
+  function renderBoard() {
+    gameBoard.querySelectorAll('.tile').forEach(tile => tile.remove());
+    const boardPadding = 8;
+    const gap = 8;
+    // 确保 gameBoard.clientWidth 在计算前是有效的
+    if (gameBoard.clientWidth === 0) {
+      // 如果 gameBoard 还未渲染或宽度为0，延迟执行或使用默认值
+      requestAnimationFrame(renderBoard); // 尝试在下一帧重新渲染
+      return;
+    }
+    const boardContentWidth = gameBoard.clientWidth - 2 * boardPadding;
+    const tileSize = (boardContentWidth - (gridSize - 1) * gap) / gridSize;
+
+    for (let r = 0; r < gridSize; r++) {
+      for (let c = 0; c < gridSize; c++) {
+        if (grid[r][c] !== 0) {
+          const tileValue = grid[r][c];
+          const tile = document.createElement('div');
+          const tileClassSuffix = [2,4,8,16,32,64,128,256,512,1024,2048,4096,8192].includes(tileValue) ? tileValue : 'default';
+          tile.classList.add('tile', `tile-${tileClassSuffix}`);
+
+          const tileInner = document.createElement('div');
+          tileInner.classList.add('tile-inner');
+          tileInner.textContent = tileValue;
+          tile.appendChild(tileInner);
+
+          tile.style.width = `${tileSize}px`;
+          tile.style.height = `${tileSize}px`;
+          tile.style.left = `${boardPadding + c * (tileSize + gap)}px`;
+          tile.style.top = `${boardPadding + r * (tileSize + gap)}px`;
+
+          if (tile.dataset.new === "true") tile.classList.add('new-tile');
+          if (tile.dataset.merged === "true") tile.classList.add('merged-tile');
+          gameBoard.appendChild(tile);
+        }
+      }
+    }
+  }
+
+  function addRandomTile() {
+    let emptyCells = [];
+    for (let r = 0; r < gridSize; r++) for (let c = 0; c < gridSize; c++) if (grid[r][c] === 0) emptyCells.push({ r, c });
+    if (emptyCells.length > 0) {
+      const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      grid[randomCell.r][randomCell.c] = Math.random() < 0.9 ? 2 : 4;
+    }
+  }
+
+  function updateScoreDisplay() { scoreDisplay.textContent = score; }
+  function updateBestScoreDisplay() {
+    bestScoreDisplay.textContent = bestScore;
+    localStorage.setItem('bestScore2048_ssz', bestScore);
+  }
+
+  function getRandomColor(palette = ['#FF5733', '#FFC300', '#DAF7A6', '#76D7C4', '#85C1E9', '#C39BD3', '#F1948A', '#82E0AA']) {
+    return palette[Math.floor(Math.random() * palette.length)];
+  }
+
+  function createFirework(gridR, gridC) {
+    const cellIndex = gridR * gridSize + gridC;
+    if (!backgroundCellElements[cellIndex]) return; // 确保背景元素存在
+    const targetCellElement = backgroundCellElements[cellIndex];
+    const cellRect = targetCellElement.getBoundingClientRect();
+    const gameBoardRect = gameBoard.getBoundingClientRect();
+    const fireworkOriginX = cellRect.left - gameBoardRect.left + (cellRect.width / 2);
+    const fireworkOriginY = cellRect.top - gameBoardRect.top + (cellRect.height / 2);
+
+    if (currentFireworkType === 'harmonious') {
+      const word = coreSocialistValues[Math.floor(Math.random() * coreSocialistValues.length)];
+      const particle = document.createElement('div');
+      particle.classList.add('firework-particle', 'harmonious-text-particle');
+      particle.textContent = word;
+      particle.style.color = getRandomColor(harmoniousParticleColors);
+
+      fireworksContainer.appendChild(particle);
+      const textWidth = particle.offsetWidth;
+      const textHeight = particle.offsetHeight;
+
+      particle.style.left = '0px';
+      particle.style.top = '0px';
+
+      const pData = {
+        element: particle,
+        x: fireworkOriginX - textWidth / 2,
+        y: fireworkOriginY - textHeight / 2,
+        vx: (Math.random() - 0.5) * 1.8,
+        vy: -(2.8 + Math.random() * 2.5),
+        life: 90 + Math.random() * 50,
+        opacity: 1, isText: true,
+      };
+      pData.initialLife = pData.life;
+      activeFireworkParticles.push(pData);
+
+    } else { // Normal fireworks
+      const numParticles = 18 + Math.floor(Math.random() * 12);
+      for (let i = 0; i < numParticles; i++) {
+        const particle = document.createElement('div');
+        particle.classList.add('firework-particle', 'normal-firework-particle');
+        particle.style.backgroundColor = getRandomColor();
+        const size = 4 + Math.random() * 3;
+        particle.style.width = `${size}px`; particle.style.height = `${size}px`;
+        particle.style.left = '0px'; particle.style.top = '0px';
+        const angle = Math.random() * Math.PI * 2; const speed = 2.5 + Math.random() * 4;
+        const pData = {
+          element: particle,
+          x: fireworkOriginX - size / 2, y: fireworkOriginY - size / 2,
+          vx: Math.cos(angle) * speed * (0.6 + Math.random()*0.4),
+          vy: Math.sin(angle) * speed - (2 + Math.random()*2.5),
+          life: 70 + Math.random() * 50, opacity: 1, initialSize: size, isText: false,
+        };
+        pData.initialLife = pData.life;
+        fireworksContainer.appendChild(particle); activeFireworkParticles.push(pData);
+      }
+    }
+    if (activeFireworkParticles.length > 0 && fireworkAnimationId === null) {
+      fireworkAnimationId = requestAnimationFrame(animateFireworks);
+    }
+  }
+
+  function animateFireworks() {
+    activeFireworkParticles = activeFireworkParticles.filter(p => {
+      p.vx *= 0.99; p.vy += GRAVITY; p.x += p.vx; p.y += p.vy; p.life -= 1;
+      if (p.life <= 0) {
+        p.element.style.transition = `opacity ${PARTICLE_FADE_DURATION}ms ease-out`;
+        p.element.style.opacity = 0;
+        setTimeout(() => { if (p.element.parentNode) p.element.remove(); }, PARTICLE_FADE_DURATION);
+        return false;
+      }
+      const lifeRatio = p.life / p.initialLife;
+      p.element.style.opacity = Math.min(1, lifeRatio * 2.5);
+      let scaleTransform = '';
+      if (p.isText) {
+        const lifeProgress = (p.initialLife - p.life) / p.initialLife;
+        const enlargeScale = 1 + lifeProgress;
+        scaleTransform = ` scale(${Math.min(2, enlargeScale)})`;
+      } else { if (lifeRatio < 0.8) { const scale = Math.max(0.1, lifeRatio / 0.8); scaleTransform = ` scale(${scale})`; } }
+      p.element.style.transform = `translate(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px)${scaleTransform}`;
+      return true;
+    });
+    if (activeFireworkParticles.length > 0) { fireworkAnimationId = requestAnimationFrame(animateFireworks); }
+    else { cancelAnimationFrame(fireworkAnimationId); fireworkAnimationId = null; }
+  }
+
+  document.addEventListener('keydown', (event) => {
+    let opResult = { moved: false, mergedLocations: [] };
+    switch (event.key) {
+      case 'ArrowUp': case 'w': case 'W': opResult = moveUp(); break;
+      case 'ArrowDown': case 's': case 'S': opResult = moveDown(); break;
+      case 'ArrowLeft': case 'a': case 'A': opResult = moveLeft(); break;
+      case 'ArrowRight': case 'd': case 'D': opResult = moveRight(); break;
+      default: return;
+    }
+    event.preventDefault();
+    if (opResult.moved) {
+      opResult.mergedLocations.forEach(loc => createFirework(loc.r, loc.c));
+      addRandomTile(); renderBoard();
+      if (checkGameOver()) showGameOver(false);
+      if (score > bestScore) { bestScore = score; updateBestScoreDisplay(); }
+    }
+  });
+
+  function slideAndMerge(arr) {
+    let newArr = arr.filter(val => val !== 0); let merged = false; let mergedIndices = [];
+    for (let i = 0; i < newArr.length - 1; i++) {
+      if (newArr[i] === newArr[i + 1]) {
+        newArr[i] *= 2; score += newArr[i]; updateScoreDisplay();
+        newArr.splice(i + 1, 1); merged = true; mergedIndices.push(i);
+        if (newArr[i] === 2048) setTimeout(() => showGameOver(true), 300);
+      }
+    } return { newArr, merged, mergedIndices };
+  }
+  function moveUp() {
+    let moved = false; let allMergedLocations = [];
+    for (let c = 0; c < gridSize; c++) {
+      let tempCol = []; for (let r = 0; r < gridSize; r++) if (grid[r][c] !== 0) tempCol.push(grid[r][c]);
+      let { newArr, merged: colMerged, mergedIndices } = slideAndMerge(tempCol);
+      if (colMerged) moved = true;
+      mergedIndices.forEach(idx => allMergedLocations.push({ r: idx, c: c }));
+      for (let r = 0; r < gridSize; r++) { const oldValue = grid[r][c]; grid[r][c] = r < newArr.length ? newArr[r] : 0; if (oldValue !== grid[r][c] && !colMerged) moved = true; }
+    } return { moved, mergedLocations: allMergedLocations };
+  }
+  function moveDown() {
+    let moved = false; let allMergedLocations = [];
+    for (let c = 0; c < gridSize; c++) {
+      let tempCol = []; for (let r = gridSize - 1; r >= 0; r--) if (grid[r][c] !== 0) tempCol.push(grid[r][c]);
+      let { newArr, merged: colMerged, mergedIndices } = slideAndMerge(tempCol);
+      if (colMerged) moved = true;
+      mergedIndices.forEach(idx => allMergedLocations.push({ r: gridSize - 1 - idx, c: c }));
+      for (let r = gridSize - 1; r >= 0; r--) { const oldValue = grid[r][c]; const valIdx = gridSize - 1 - r; grid[r][c] = valIdx < newArr.length ? newArr[valIdx] : 0; if (oldValue !== grid[r][c] && !colMerged) moved = true; }
+    } return { moved, mergedLocations: allMergedLocations };
+  }
+  function moveLeft() {
+    let moved = false; let allMergedLocations = [];
+    for (let r = 0; r < gridSize; r++) {
+      let tempRow = []; for (let c = 0; c < gridSize; c++) if (grid[r][c] !== 0) tempRow.push(grid[r][c]);
+      let { newArr, merged: rowMerged, mergedIndices } = slideAndMerge(tempRow);
+      if (rowMerged) moved = true;
+      mergedIndices.forEach(idx => allMergedLocations.push({ r: r, c: idx }));
+      for (let c = 0; c < gridSize; c++) { const oldValue = grid[r][c]; grid[r][c] = c < newArr.length ? newArr[c] : 0; if (oldValue !== grid[r][c] && !rowMerged) moved = true; }
+    } return { moved, mergedLocations: allMergedLocations };
+  }
+  function moveRight() {
+    let moved = false; let allMergedLocations = [];
+    for (let r = 0; r < gridSize; r++) {
+      let tempRow = []; for (let c = gridSize - 1; c >= 0; c--) if (grid[r][c] !== 0) tempRow.push(grid[r][c]);
+      let { newArr, merged: rowMerged, mergedIndices } = slideAndMerge(tempRow);
+      if (rowMerged) moved = true;
+      mergedIndices.forEach(idx => allMergedLocations.push({ r: r, c: gridSize - 1 - idx }));
+      for (let c = gridSize - 1; c >= 0; c--) { const oldValue = grid[r][c]; const valIdx = gridSize - 1 - c; grid[r][c] = valIdx < newArr.length ? newArr[valIdx] : 0; if (oldValue !== grid[r][c] && !rowMerged) moved = true; }
+    } return { moved, mergedLocations: allMergedLocations };
+  }
+
+  function checkGameOver() {
+    for (let r = 0; r < gridSize; r++) for (let c = 0; c < gridSize; c++) {
+      if (grid[r][c] === 0) return false;
+      if (c < gridSize - 1 && grid[r][c] === grid[r][c + 1]) return false;
+      if (r < gridSize - 1 && grid[r][c] === grid[r + 1][c]) return false;
+    } return true;
+  }
+  function showGameOver(isWin) {
+    gameOverTitle.textContent = isWin ? "恭喜你!" : "游戏结束!";
+    gameOverMessage.textContent = isWin ? `你成功达到了 2048! 最终得分: ${score}` : `你没有更多可移动的步数了。最终得分: ${score}`;
+    gameOverModal.classList.add('show');
+  }
+
+  gameBoard.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; e.preventDefault(); }, { passive: false });
+  gameBoard.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+  gameBoard.addEventListener('touchend', (e) => { touchEndX = e.changedTouches[0].clientX; touchEndY = e.changedTouches[0].clientY; handleSwipe(); e.preventDefault(); }, { passive: false });
+
+  function handleSwipe() {
+    const deltaX = touchEndX - touchStartX; const deltaY = touchEndY - touchStartY; const minSwipeDistance = 30;
+    let opResult = { moved: false, mergedLocations: [] };
+    if (Math.abs(deltaX) > Math.abs(deltaY)) { if (Math.abs(deltaX) > minSwipeDistance) opResult = deltaX > 0 ? moveRight() : moveLeft(); }
+    else { if (Math.abs(deltaY) > minSwipeDistance) opResult = deltaY > 0 ? moveDown() : moveUp(); }
+    if (opResult.moved) {
+      opResult.mergedLocations.forEach(loc => createFirework(loc.r, loc.c));
+      addRandomTile(); renderBoard();
+      if (checkGameOver()) showGameOver(false);
+      if (score > bestScore) { bestScore = score; updateBestScoreDisplay(); }
+    }
+  }
+
+  // 设置菜单的点击事件
+  settingsGearButton.addEventListener('click', (event) => {
+    settingsMenu.classList.toggle('hidden');
+    settingsGearButton.classList.toggle('open');
+    event.stopPropagation(); // 防止点击事件冒泡到document
+  });
+
+  // 点击菜单外部关闭菜单
+  document.addEventListener('click', (event) => {
+    if (!settingsMenu.classList.contains('hidden') &&
+      !settingsMenu.contains(event.target) &&
+      !settingsGearButton.contains(event.target)) {
+      settingsMenu.classList.add('hidden');
+      settingsGearButton.classList.remove('open');
+    }
+  });
+
+
+  resetButton.addEventListener('click', initGame);
+  restartGameButton.addEventListener('click', () => { gameOverModal.classList.remove('show'); initGame(); });
+  menuThemeToggleButton.addEventListener('click', toggleTheme); // 使用新的菜单按钮
+  menuFireworkToggleButton.addEventListener('click', toggleFireworkType); // 使用新的菜单按钮
+
+  applyTheme(currentTheme);
+  applyFireworkType(currentFireworkType);
+  initGame();
+  window.addEventListener('resize', () => {
+    if(gameBoard.clientWidth > 0) { // 确保有有效宽度再操作
+      createBackgroundGrid();
+      renderBoard();
+    }
+  });
+  requestAnimationFrame(() => {
+    if(gameBoard.clientWidth === 0) { // 如果初始宽度为0，等待下一帧
+      requestAnimationFrame(()=> {
+        if(backgroundCellElements.length === 0) createBackgroundGrid();
+        renderBoard();
+      });
+    } else {
+      if(backgroundCellElements.length === 0) createBackgroundGrid();
+      renderBoard();
+    }
+  });
+</script>
+</body>
+</html>
