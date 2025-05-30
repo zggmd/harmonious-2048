@@ -4,6 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2048 爱国版</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Theme color for browser UI -->
+    <meta name="theme-color" content="#f2b179">
+
+    <!-- iOS specific meta tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="2048爱国版">
+    <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="icons/pwa-512x512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/pwa-192x192.png"> <!-- Larger icon for newer iPhones -->
+    <!-- Add more apple-touch-icon sizes if needed -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="2048爱国版">
+    <link rel="apple-touch-startup-image" href="icons/maskable-icon-512x512.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
@@ -154,7 +173,7 @@
         }
         @keyframes mergedTileAnimation {
             0% { transform: scale(1); }
-            50% { transform: scale(1.2); }
+            50% { transform: scale(2); }
             100% { transform: scale(1); }
         }
 
@@ -189,7 +208,7 @@
             border-radius: 50%;
         }
         .harmonious-text-particle {
-            font-size: 1.6rem;
+            font-size: 0.8rem;
             font-weight: bold;
             text-shadow: 0 0 3px rgba(0,0,0,0.2);
             white-space: nowrap;
@@ -285,6 +304,19 @@
 </div>
 
 <script>
+  // Service Worker Registration
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(registration => {
+          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        })
+        .catch(error => {
+          console.log('ServiceWorker registration failed: ', error);
+        });
+    });
+  }
+
   const gameBoard = document.getElementById('game-board');
   const scoreDisplay = document.getElementById('score');
   const bestScoreDisplay = document.getElementById('best-score');
@@ -496,12 +528,18 @@
       }
       const lifeRatio = p.life / p.initialLife;
       p.element.style.opacity = Math.min(1, lifeRatio * 2.5);
+
       let scaleTransform = '';
-      if (p.isText) {
-        const lifeProgress = (p.initialLife - p.life) / p.initialLife;
-        const enlargeScale = 1 + lifeProgress;
-        scaleTransform = ` scale(${Math.min(2, enlargeScale)})`;
-      } else { if (lifeRatio < 0.8) { const scale = Math.max(0.1, lifeRatio / 0.8); scaleTransform = ` scale(${scale})`; } }
+      if (p.isText) { // Harmonious text particle
+        const lifeProgress = (p.initialLife - p.life) / p.initialLife; // Ranges 0 (start) to 1 (end)
+        const enlargeScale = 1 + 4 * lifeProgress; // Scales from 1x to 5x
+        scaleTransform = ` scale(${enlargeScale})`;
+      } else { // Normal firework particle
+        if (lifeRatio < 0.8) {
+          const scale = Math.max(0.1, lifeRatio / 0.8); // Shrinks from 1x to 0.1x in last 80% of life
+          scaleTransform = ` scale(${scale})`;
+        }
+      }
       p.element.style.transform = `translate(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px)${scaleTransform}`;
       return true;
     });
