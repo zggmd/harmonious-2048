@@ -5,21 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2048 爱国版</title>
 
-    <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
 
-    <!-- Theme color for browser UI -->
     <meta name="theme-color" content="#f2b179">
 
-    <!-- iOS specific meta tags -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="2048爱国版">
     <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="icons/pwa-512x512.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/pwa-192x192.png"> <!-- Larger icon for newer iPhones -->
-    <!-- Add more apple-touch-icon sizes if needed -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/pwa-192x192.png"> <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="2048爱国版">
     <link rel="apple-touch-startup-image" href="icons/maskable-icon-512x512.png">
@@ -110,6 +105,11 @@
             transition: background-color 0.2s ease;
         }
         .action-button:hover { background-color: var(--button-hover-bg); }
+        .action-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
 
         .grid-cell-bg {
             background-color: var(--cell-bg);
@@ -290,9 +290,15 @@
     <div id="fireworks-container"></div>
 </div>
 
-<button id="reset-button" class="action-button font-bold py-3 px-6 rounded-lg shadow text-lg transition duration-150 ease-in-out mb-3">
-    重新开始
-</button>
+<div class="flex flex-wrap justify-center gap-3 mb-3">
+    <button id="undo-button" class="action-button font-bold py-3 px-6 rounded-lg shadow text-lg transition duration-150 ease-in-out">
+        撤销 (0/5)
+    </button>
+    <button id="reset-button" class="action-button font-bold py-3 px-6 rounded-lg shadow text-lg transition duration-150 ease-in-out">
+        重新开始
+    </button>
+</div>
+
 <div id="game-over-modal" class="game-over-modal">
     <div class="game-over-content">
         <h2 id="game-over-title">游戏结束!</h2>
@@ -321,6 +327,7 @@
   const scoreDisplay = document.getElementById('score');
   const bestScoreDisplay = document.getElementById('best-score');
   const resetButton = document.getElementById('reset-button');
+  const undoButton = document.getElementById('undo-button'); // 新增
 
   const settingsGearButton = document.getElementById('settings-gear-button');
   const settingsMenu = document.getElementById('settings-menu');
@@ -339,6 +346,10 @@
   let bestScore = localStorage.getItem('bestScore2048_ssz') ? parseInt(localStorage.getItem('bestScore2048_ssz')) : 0;
   let currentTheme = localStorage.getItem('theme2048_ssz') || 'light';
   let currentFireworkType = localStorage.getItem('fireworkType2048_ssz') || 'harmonious';
+
+  // 新增: 游戏状态历史记录，最多存储5步
+  let gameStates = [];
+  const MAX_UNDO_STEPS = 5;
 
   const coreSocialistValues = ["富强", "民主", "文明", "和谐", "自由", "平等", "公正", "法治", "爱国", "敬业", "诚信", "友善"];
   const harmoniousParticleColors = ['#FF7EB9', '#FFB74D', '#AED581', '#4FC3F7', '#BA68C8', '#FFF176', '#FF8A65', '#7986CB', '#F06292', '#FFD54F', '#81C784', '#64B5F6'];
@@ -385,6 +396,82 @@
     }
   }
 
+  // 新增: 从localStorage加载游戏状态
+  function loadGame() {
+    const savedState = localStorage.getItem('2048_game_state_ssz');
+    const savedHistory = localStorage.getItem('2048_game_history_ssz');
+
+    if (savedState) {
+      const state = JSON.parse(savedState);
+      grid = state.grid;
+      score = state.score;
+      bestScore = localStorage.getItem('bestScore2048_ssz') ? parseInt(localStorage.getItem('bestScore2048_ssz')) : 0; // 最佳分数从独立存储读取
+      updateScoreDisplay();
+      updateBestScoreDisplay();
+      renderBoard();
+      gameOverModal.classList.remove('show');
+    } else {
+      initGame(); // 如果没有保存状态，则初始化新游戏
+    }
+
+    if (savedHistory) {
+      gameStates = JSON.parse(savedHistory);
+    } else {
+      gameStates = [];
+      // 如果没有历史记录，初始化游戏后会保存当前状态
+    }
+    // 确保游戏开始时至少有一个状态，以便可以撤销到初始状态（如果游戏不是刚刚开始）
+    if (gameStates.length === 0) {
+      saveGameState(); // 此时的 saveGameState 会将当前 grid, score 保存为第一步
+    }
+    updateUndoButtonText();
+  }
+
+  // 新增: 保存当前游戏状态到历史记录和 localStorage
+  function saveGameState() {
+    const currentState = {
+      grid: JSON.parse(JSON.stringify(grid)), // 深拷贝 grid 避免引用问题
+      score: score,
+    };
+
+    // 移除最旧的状态，如果超过最大步数
+    if (gameStates.length >= MAX_UNDO_STEPS) {
+      gameStates.shift();
+    }
+    gameStates.push(currentState);
+
+    localStorage.setItem('2048_game_state_ssz', JSON.stringify(currentState));
+    localStorage.setItem('2048_game_history_ssz', JSON.stringify(gameStates));
+    updateUndoButtonText();
+  }
+
+  // 新增: 执行Undo操作
+  function undoLastMove() {
+    if (gameStates.length > 1) { // 至少保留一个初始状态
+      gameStates.pop(); // 移除当前状态
+      const previousState = gameStates[gameStates.length - 1]; // 获取上一个状态
+
+      grid = JSON.parse(JSON.stringify(previousState.grid));
+      score = previousState.score;
+      // bestScore 不变，因为它只是最高分记录
+      updateScoreDisplay();
+      renderBoard();
+      gameOverModal.classList.remove('show'); // 如果在游戏结束时Undo，关闭Modal
+      updateUndoButtonText();
+      localStorage.setItem('2048_game_state_ssz', JSON.stringify(previousState)); // 更新 localStorage 中的当前状态
+      localStorage.setItem('2048_game_history_ssz', JSON.stringify(gameStates)); // 更新 localStorage 中的历史记录
+    } else {
+      console.log('No more moves to undo or only initial state remains.');
+    }
+  }
+
+  // 新增: 更新Undo按钮的显示文本和禁用状态
+  function updateUndoButtonText() {
+    // gameStates.length - 1 是实际可撤销的步数，因为第一个状态是当前状态
+    undoButton.textContent = `撤销 (${Math.max(0, gameStates.length - 1)}/${MAX_UNDO_STEPS})`;
+    undoButton.disabled = (gameStates.length <= 1); // 只有当历史记录多于1步时才启用
+  }
+
   function initGame() {
     grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(0));
     score = 0;
@@ -396,6 +483,10 @@
     addRandomTile();
     renderBoard();
     gameOverModal.classList.remove('show');
+
+    // 重新开始游戏时，重置历史记录并保存初始状态
+    gameStates = [];
+    saveGameState(); // 保存初始状态
   }
 
   function renderBoard() {
@@ -429,8 +520,8 @@
           tile.style.left = `${boardPadding + c * (tileSize + gap)}px`;
           tile.style.top = `${boardPadding + r * (tileSize + gap)}px`;
 
-          if (tile.dataset.new === "true") tile.classList.add('new-tile');
-          if (tile.dataset.merged === "true") tile.classList.add('merged-tile');
+          // 这里我们不再依赖dataset.new/merged，因为我们通过保存整个状态来处理历史，
+          // 但为了动画效果，可以根据移动结果临时添加动画类
           gameBoard.appendChild(tile);
         }
       }
@@ -562,6 +653,7 @@
       addRandomTile(); renderBoard();
       if (checkGameOver()) showGameOver(false);
       if (score > bestScore) { bestScore = score; updateBestScoreDisplay(); }
+      saveGameState(); // 保存状态
     }
   });
 
@@ -643,6 +735,7 @@
       addRandomTile(); renderBoard();
       if (checkGameOver()) showGameOver(false);
       if (score > bestScore) { bestScore = score; updateBestScoreDisplay(); }
+      saveGameState(); // 保存状态
     }
   }
 
@@ -668,10 +761,11 @@
   restartGameButton.addEventListener('click', () => { gameOverModal.classList.remove('show'); initGame(); });
   menuThemeToggleButton.addEventListener('click', toggleTheme); // 使用新的菜单按钮
   menuFireworkToggleButton.addEventListener('click', toggleFireworkType); // 使用新的菜单按钮
+  undoButton.addEventListener('click', undoLastMove); // 新增：撤销按钮事件监听
 
   applyTheme(currentTheme);
   applyFireworkType(currentFireworkType);
-  initGame();
+  loadGame(); // 修改：页面加载时调用 loadGame 而不是 initGame
   window.addEventListener('resize', () => {
     if(gameBoard.clientWidth > 0) { // 确保有有效宽度再操作
       createBackgroundGrid();
