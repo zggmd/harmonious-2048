@@ -196,6 +196,14 @@
         .game-over-content h2 { font-size: 2rem; color: var(--modal-header-color); margin-bottom: 15px; }
         .game-over-content p { font-size: 1.2rem; color: var(--modal-text-color); margin-bottom: 25px; }
 
+        /* Modal specific buttons layout */
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem; /* 16px */
+            margin-top: 20px;
+        }
+
         #fireworks-container {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; z-index: 4; overflow: hidden;
@@ -303,9 +311,14 @@
     <div class="game-over-content">
         <h2 id="game-over-title">游戏结束!</h2>
         <p id="game-over-message">你没有更多可移动的步数了。</p>
-        <button id="restart-game-button" class="action-button font-bold py-2 px-4 rounded-lg transition duration-150 ease-in-out">
-            再玩一次
-        </button>
+        <div class="modal-buttons">
+            <button id="restart-game-button" class="action-button font-bold py-2 px-4 rounded-lg transition duration-150 ease-in-out">
+                再玩一次
+            </button>
+            <button id="continue-game-button" class="action-button font-bold py-2 px-4 rounded-lg transition duration-150 ease-in-out hidden">
+                继续游戏
+            </button>
+        </div>
     </div>
 </div>
 
@@ -327,7 +340,7 @@
   const scoreDisplay = document.getElementById('score');
   const bestScoreDisplay = document.getElementById('best-score');
   const resetButton = document.getElementById('reset-button');
-  const undoButton = document.getElementById('undo-button'); // 新增
+  const undoButton = document.getElementById('undo-button');
 
   const settingsGearButton = document.getElementById('settings-gear-button');
   const settingsMenu = document.getElementById('settings-menu');
@@ -338,6 +351,8 @@
   const gameOverTitle = document.getElementById('game-over-title');
   const gameOverMessage = document.getElementById('game-over-message');
   const restartGameButton = document.getElementById('restart-game-button');
+  const continueGameButton = document.getElementById('continue-game-button');
+
   const fireworksContainer = document.getElementById('fireworks-container');
 
   const gridSize = 4;
@@ -346,8 +361,9 @@
   let bestScore = localStorage.getItem('bestScore2048_ssz') ? parseInt(localStorage.getItem('bestScore2048_ssz')) : 0;
   let currentTheme = localStorage.getItem('theme2048_ssz') || 'light';
   let currentFireworkType = localStorage.getItem('fireworkType2048_ssz') || 'harmonious';
+  let hasReached2048 = localStorage.getItem('hasReached2048_ssz') === 'true' || false;
 
-  // 新增: 游戏状态历史记录，最多存储5步
+  // 游戏状态历史记录，最多存储5步
   let gameStates = [];
   const MAX_UNDO_STEPS = 5;
 
@@ -396,45 +412,68 @@
     }
   }
 
-  // 新增: 从localStorage加载游戏状态
+  // 从localStorage加载游戏状态
   function loadGame() {
     const savedState = localStorage.getItem('2048_game_state_ssz');
     const savedHistory = localStorage.getItem('2048_game_history_ssz');
+    hasReached2048 = localStorage.getItem('hasReached2048_ssz') === 'true';
 
     if (savedState) {
-      const state = JSON.parse(savedState);
-      grid = state.grid;
-      score = state.score;
-      bestScore = localStorage.getItem('bestScore2048_ssz') ? parseInt(localStorage.getItem('bestScore2048_ssz')) : 0; // 最佳分数从独立存储读取
-      updateScoreDisplay();
-      updateBestScoreDisplay();
-      renderBoard();
-      gameOverModal.classList.remove('show');
+      try {
+        const state = JSON.parse(savedState);
+        // **调试输出：确认加载状态**
+        console.log('--- loadGame: 从 localStorage 成功加载状态 ---');
+        console.log('加载的 grid:', state.grid);
+        console.log('加载的 score:', state.score);
+
+        grid = state.grid;
+        score = state.score;
+        bestScore = localStorage.getItem('bestScore2048_ssz') ? parseInt(localStorage.getItem('bestScore2048_ssz')) : 0;
+        updateScoreDisplay();
+        updateBestScoreDisplay();
+        renderBoard();
+        gameOverModal.classList.remove('show');
+
+      } catch (e) {
+        // **调试输出：JSON 解析错误**
+        console.error('--- loadGame: 解析 localStorage 状态失败，可能 JSON 格式错误或数据损坏 ---');
+        console.error('错误信息:', e);
+        console.warn('正在初始化新游戏...');
+        initGame(); // 解析失败则初始化新游戏
+      }
     } else {
-      initGame(); // 如果没有保存状态，则初始化新游戏
+      // **调试输出：localStorage 中没有找到状态**
+      console.log('--- loadGame: localStorage 中没有找到保存状态，正在初始化新游戏 ---');
+      initGame();
     }
 
     if (savedHistory) {
-      gameStates = JSON.parse(savedHistory);
+      try {
+        gameStates = JSON.parse(savedHistory);
+        console.log('加载的游戏历史:', gameStates);
+      } catch (e) {
+        console.error('--- loadGame: 解析 localStorage 历史记录失败 ---', e);
+        gameStates = [];
+      }
     } else {
       gameStates = [];
-      // 如果没有历史记录，初始化游戏后会保存当前状态
     }
-    // 确保游戏开始时至少有一个状态，以便可以撤销到初始状态（如果游戏不是刚刚开始）
+
+    // 确保初始状态被保存，以便撤销按钮正确显示
     if (gameStates.length === 0) {
-      saveGameState(); // 此时的 saveGameState 会将当前 grid, score 保存为第一步
+      console.log('--- loadGame: 游戏历史为空，保存当前初始状态 ---');
+      saveGameState();
     }
     updateUndoButtonText();
   }
 
-  // 新增: 保存当前游戏状态到历史记录和 localStorage
+  // 保存当前游戏状态到历史记录和 localStorage
   function saveGameState() {
     const currentState = {
-      grid: JSON.parse(JSON.stringify(grid)), // 深拷贝 grid 避免引用问题
+      grid: JSON.parse(JSON.stringify(grid)),
       score: score,
     };
 
-    // 移除最旧的状态，如果超过最大步数
     if (gameStates.length >= MAX_UNDO_STEPS) {
       gameStates.shift();
     }
@@ -442,61 +481,60 @@
 
     localStorage.setItem('2048_game_state_ssz', JSON.stringify(currentState));
     localStorage.setItem('2048_game_history_ssz', JSON.stringify(gameStates));
+    localStorage.setItem('hasReached2048_ssz', hasReached2048);
     updateUndoButtonText();
   }
 
-  // 新增: 执行Undo操作
+  // 执行Undo操作
   function undoLastMove() {
-    if (gameStates.length > 1) { // 至少保留一个初始状态
-      gameStates.pop(); // 移除当前状态
-      const previousState = gameStates[gameStates.length - 1]; // 获取上一个状态
+    if (gameStates.length > 1) {
+      gameStates.pop();
+      const previousState = gameStates[gameStates.length - 1];
 
       grid = JSON.parse(JSON.stringify(previousState.grid));
       score = previousState.score;
-      // bestScore 不变，因为它只是最高分记录
       updateScoreDisplay();
       renderBoard();
-      gameOverModal.classList.remove('show'); // 如果在游戏结束时Undo，关闭Modal
+      gameOverModal.classList.remove('show');
       updateUndoButtonText();
-      localStorage.setItem('2048_game_state_ssz', JSON.stringify(previousState)); // 更新 localStorage 中的当前状态
-      localStorage.setItem('2048_game_history_ssz', JSON.stringify(gameStates)); // 更新 localStorage 中的历史记录
+      localStorage.setItem('2048_game_state_ssz', JSON.stringify(previousState));
+      localStorage.setItem('2048_game_history_ssz', JSON.stringify(gameStates));
+      console.log('--- 撤销成功，当前网格:', grid); // 调试
     } else {
-      console.log('No more moves to undo or only initial state remains.');
+      console.log('--- 无法撤销：没有更多可撤销的步数或仅剩初始状态 ---'); // 调试
     }
   }
 
-  // 新增: 更新Undo按钮的显示文本和禁用状态
+  // 更新Undo按钮的显示文本和禁用状态
   function updateUndoButtonText() {
-    // gameStates.length - 1 是实际可撤销的步数，因为第一个状态是当前状态
     undoButton.textContent = `撤销 (${Math.max(0, gameStates.length - 1)}/${MAX_UNDO_STEPS})`;
-    undoButton.disabled = (gameStates.length <= 1); // 只有当历史记录多于1步时才启用
+    undoButton.disabled = (gameStates.length <= 1);
   }
 
   function initGame() {
     grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(0));
     score = 0;
+    hasReached2048 = false;
     updateScoreDisplay();
     updateBestScoreDisplay();
     gameBoard.querySelectorAll('.tile').forEach(tile => tile.remove());
     if (backgroundCellElements.length === 0) createBackgroundGrid();
-    addRandomTile();
+    addRandomTile(); // 初始添加两个方块
     addRandomTile();
     renderBoard();
     gameOverModal.classList.remove('show');
 
-    // 重新开始游戏时，重置历史记录并保存初始状态
-    gameStates = [];
+    gameStates = []; // 初始化游戏时清空历史
     saveGameState(); // 保存初始状态
+    console.log('--- initGame: 游戏已初始化 ---'); // 调试
   }
 
   function renderBoard() {
     gameBoard.querySelectorAll('.tile').forEach(tile => tile.remove());
     const boardPadding = 8;
     const gap = 8;
-    // 确保 gameBoard.clientWidth 在计算前是有效的
     if (gameBoard.clientWidth === 0) {
-      // 如果 gameBoard 还未渲染或宽度为0，延迟执行或使用默认值
-      requestAnimationFrame(renderBoard); // 尝试在下一帧重新渲染
+      requestAnimationFrame(renderBoard);
       return;
     }
     const boardContentWidth = gameBoard.clientWidth - 2 * boardPadding;
@@ -520,21 +558,142 @@
           tile.style.left = `${boardPadding + c * (tileSize + gap)}px`;
           tile.style.top = `${boardPadding + r * (tileSize + gap)}px`;
 
-          // 这里我们不再依赖dataset.new/merged，因为我们通过保存整个状态来处理历史，
-          // 但为了动画效果，可以根据移动结果临时添加动画类
           gameBoard.appendChild(tile);
         }
       }
     }
   }
 
+  // 查找棋盘中的最大值和最小值 (非0)
+  function findMaxValueAndMinNonZeroValue() {
+    let maxVal = 0;
+    let minNonZeroVal = Infinity; // 初始化为无穷大，表示尚未找到非零值
+
+    for (let r = 0; r < gridSize; r++) {
+      for (let c = 0; c < gridSize; c++) {
+        if (grid[r][c] > maxVal) {
+          maxVal = grid[r][c];
+        }
+        if (grid[r][c] !== 0 && grid[r][c] < minNonZeroVal) {
+          minNonZeroVal = grid[r][c];
+        }
+      }
+    }
+    // **调试输出：确认最大值和最小值**
+    console.log(`--- findMaxValueAndMinNonZeroValue: 当前棋盘最大值是 ${maxVal}, 最小非零值是 ${minNonZeroVal === Infinity ? '无' : minNonZeroVal} ---`);
+    return { maxVal, minNonZeroVal: minNonZeroVal === Infinity ? 0 : minNonZeroVal }; // 如果没有非零值，返回0
+  }
+
+  // 辅助函数：根据权重选择值
+  function selectWeightedValue(values, weights, randomNum) {
+    let cumulativeWeight = 0;
+    for (let i = 0; i < values.length; i++) {
+      cumulativeWeight += weights[i];
+      if (randomNum < cumulativeWeight) {
+        return values[i];
+      }
+    }
+    // Fallback in case of floating point inaccuracies or sum of weights not exactly 1
+    return values[values.length - 1];
+  }
+
+
+  // 最终修正：根据当前最大值动态生成新方块，并增加智能辅助合并逻辑
   function addRandomTile() {
     let emptyCells = [];
-    for (let r = 0; r < gridSize; r++) for (let c = 0; c < gridSize; c++) if (grid[r][c] === 0) emptyCells.push({ r, c });
-    if (emptyCells.length > 0) {
-      const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
-      grid[randomCell.r][randomCell.c] = Math.random() < 0.9 ? 2 : 4;
+    for (let r = 0; r < gridSize; r++) {
+      for (let c = 0; c < gridSize; c++) {
+        if (grid[r][c] === 0) {
+          emptyCells.push({ r, c });
+        }
+      }
     }
+
+    if (emptyCells.length === 0) {
+      console.warn('--- addRandomTile: 没有可用空单元格，无法添加新方块 ---');
+      return;
+    }
+
+    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    let newValue = 2; // 默认值
+
+    const { maxVal: currentMaxValue, minNonZeroVal: currentMinNonZeroValue } = findMaxValueAndMinNonZeroValue();
+    const rand = Math.random(); // 用于决定是否触发辅助合并和基础值选择
+
+    let basePossibleValues = [];
+    let baseWeights = [];
+    let targetMinValueForStage = 2; // 默认阶段的期望最小值
+
+    // Step 1: 根据 currentMaxValue 确定基础生成范围和当前阶段的期望最小值
+    if (currentMaxValue <= 1024) {
+      basePossibleValues = [2, 4];
+      baseWeights = [0.9, 0.1]; // 90% 几率 2, 10% 几率 4
+      targetMinValueForStage = 2;
+      console.log(`--- addRandomTile (Base): currentMaxValue <= 1024 (${currentMaxValue}), 基础生成范围: [${basePossibleValues}], 期望最小值: ${targetMinValueForStage} ---`);
+    } else if (currentMaxValue === 2048) {
+      basePossibleValues = [4, 8];
+      baseWeights = [0.9, 0.1]; // 90% 几率 4, 10% 几率 8
+      targetMinValueForStage = 4;
+      console.log(`--- addRandomTile (Base): currentMaxValue == 2048 (${currentMaxValue}), 基础生成范围: [${basePossibleValues}], 期望最小值: ${targetMinValueForStage} ---`);
+    } else if (currentMaxValue === 4096) {
+      basePossibleValues = [8, 16];
+      baseWeights = [0.8, 0.2]; // 80% 几率 8, 20% 几率 16
+      targetMinValueForStage = 8;
+      console.log(`--- addRandomTile (Base): currentMaxValue == 4096 (${currentMaxValue}), 基础生成范围: [${basePossibleValues}], 期望最小值: ${targetMinValueForStage} ---`);
+    } else if (currentMaxValue === 8192) {
+      basePossibleValues = [16, 32];
+      baseWeights = [0.8, 0.2]; // 80% 几率 16, 20% 几率 32
+      targetMinValueForStage = 16;
+      console.log(`--- addRandomTile (Base): currentMaxValue == 8192 (${currentMaxValue}), 基础生成范围: [${basePossibleValues}], 期望最小值: ${targetMinValueForStage} ---`);
+    } else if (currentMaxValue === 16384) {
+      basePossibleValues = [32, 64];
+      baseWeights = [0.8, 0.2];
+      targetMinValueForStage = 32;
+      console.log(`--- addRandomTile (Base): currentMaxValue == 16384 (${currentMaxValue}), 基础生成范围: [${basePossibleValues}], 期望最小值: ${targetMinValueForStage} ---`);
+    } else if (currentMaxValue >= 32768) { // 针对更高值
+      basePossibleValues = [64, 128];
+      baseWeights = [0.8, 0.2];
+      targetMinValueForStage = 64;
+      console.log(`--- addRandomTile (Base): currentMaxValue >= 32768 (${currentMaxValue}), 基础生成范围: [${basePossibleValues}], 期望最小值: ${targetMinValueForStage} ---`);
+    }
+
+    // Step 2: 智能辅助合并逻辑
+    const MERGE_ASSIST_PROBABILITY = 0.25; // 25% 的几率触发辅助合并
+    let shouldAssistMerge = false;
+    let assistValue = 0;
+
+    // 只有当棋盘上有比期望最小值还小的值时，才考虑辅助合并
+    // 并且该小值乘以2或4后能够达到或超过当前阶段的期望最小值
+    if (currentMinNonZeroValue !== 0 && currentMinNonZeroValue < targetMinValueForStage) {
+      // 检查这个小值是否可以通过一次或两次合并达到或超过目标最小值
+      // 比如目标是16，棋盘有8，那么生成8即可。
+      // 目标是16，棋盘有4，生成4可以合并成8，再生成8才能合并成16，所以直接生成4可能不够。
+      // 为了简化，我们只考虑生成一个能够**直接合并**或**辅助合并到下一个所需阶梯**的值。
+      // 最直接的策略是：如果存在 'X' 且 'X' < targetMinValueForStage，就生成 'X'。
+      // 这需要确保 'X' 能够被合并，如果'X'是奇数那就不应该生成，但2048都是偶数，所以不用担心。
+      if (rand < MERGE_ASSIST_PROBABILITY) {
+        shouldAssistMerge = true;
+        assistValue = currentMinNonZeroValue;
+        console.log(`--- addRandomTile (Assist): 触发辅助合并! 最小非零值 ${currentMinNonZeroValue} 小于期望最小值 ${targetMinValueForStage}。将生成 ${assistValue} ---`);
+      } else {
+        console.log(`--- addRandomTile (Assist): 存在辅助合并机会 (${currentMinNonZeroValue} < ${targetMinValueForStage}) 但未触发 (${rand.toFixed(2)} >= ${MERGE_ASSIST_PROBABILITY}) ---`);
+      }
+    } else if (currentMinNonZeroValue >= targetMinValueForStage) {
+      console.log(`--- addRandomTile (Assist): 最小非零值 ${currentMinNonZeroValue} 已达到或超过期望最小值 ${targetMinValueForStage}。不需要辅助合并 ---`);
+    } else { // currentMinNonZeroValue === 0 (即棋盘全空或只有0)
+      console.log(`--- addRandomTile (Assist): 棋盘上没有非零值，不需要辅助合并 ---`);
+    }
+
+    // Step 3: 最终决定生成值
+    if (shouldAssistMerge) {
+      newValue = assistValue;
+    } else {
+      // 如果没有触发辅助合并，则根据基础权重选择值
+      newValue = selectWeightedValue(basePossibleValues, baseWeights, rand);
+    }
+
+    grid[randomCell.r][randomCell.c] = newValue;
+    console.log(`--- addRandomTile: 新方块放置在 (${randomCell.r}, ${randomCell.c})，最终值为 ${newValue} ---`); // 最终放置确认
   }
 
   function updateScoreDisplay() { scoreDisplay.textContent = score; }
@@ -549,7 +708,7 @@
 
   function createFirework(gridR, gridC) {
     const cellIndex = gridR * gridSize + gridC;
-    if (!backgroundCellElements[cellIndex]) return; // 确保背景元素存在
+    if (!backgroundCellElements[cellIndex]) return;
     const targetCellElement = backgroundCellElements[cellIndex];
     const cellRect = targetCellElement.getBoundingClientRect();
     const gameBoardRect = gameBoard.getBoundingClientRect();
@@ -582,7 +741,7 @@
       pData.initialLife = pData.life;
       activeFireworkParticles.push(pData);
 
-    } else { // Normal fireworks
+    } else {
       const numParticles = 18 + Math.floor(Math.random() * 12);
       for (let i = 0; i < numParticles; i++) {
         const particle = document.createElement('div');
@@ -621,13 +780,13 @@
       p.element.style.opacity = Math.min(1, lifeRatio * 2.5);
 
       let scaleTransform = '';
-      if (p.isText) { // Harmonious text particle
-        const lifeProgress = (p.initialLife - p.life) / p.initialLife; // Ranges 0 (start) to 1 (end)
-        const enlargeScale = 1 + 4 * lifeProgress; // Scales from 1x to 5x
+      if (p.isText) {
+        const lifeProgress = (p.initialLife - p.life) / p.initialLife;
+        const enlargeScale = 1 + 4 * lifeProgress;
         scaleTransform = ` scale(${enlargeScale})`;
-      } else { // Normal firework particle
+      } else {
         if (lifeRatio < 0.8) {
-          const scale = Math.max(0.1, lifeRatio / 0.8); // Shrinks from 1x to 0.1x in last 80% of life
+          const scale = Math.max(0.1, lifeRatio / 0.8);
           scaleTransform = ` scale(${scale})`;
         }
       }
@@ -653,7 +812,7 @@
       addRandomTile(); renderBoard();
       if (checkGameOver()) showGameOver(false);
       if (score > bestScore) { bestScore = score; updateBestScoreDisplay(); }
-      saveGameState(); // 保存状态
+      saveGameState();
     }
   });
 
@@ -663,7 +822,10 @@
       if (newArr[i] === newArr[i + 1]) {
         newArr[i] *= 2; score += newArr[i]; updateScoreDisplay();
         newArr.splice(i + 1, 1); merged = true; mergedIndices.push(i);
-        if (newArr[i] === 2048) setTimeout(() => showGameOver(true), 300);
+        if (newArr[i] === 2048 && !hasReached2048) {
+          hasReached2048 = true;
+          setTimeout(() => showGameOver(true), 300);
+        }
       }
     } return { newArr, merged, mergedIndices };
   }
@@ -709,16 +871,32 @@
   }
 
   function checkGameOver() {
-    for (let r = 0; r < gridSize; r++) for (let c = 0; c < gridSize; c++) {
-      if (grid[r][c] === 0) return false;
-      if (c < gridSize - 1 && grid[r][c] === grid[r][c + 1]) return false;
-      if (r < gridSize - 1 && grid[r][c] === grid[r + 1][c]) return false;
-    } return true;
+    for (let r = 0; r < gridSize; r++) {
+      for (let c = 0; c < gridSize; c++) {
+        if (grid[r][c] === 0) return false;
+        if (c < gridSize - 1 && grid[r][c] === grid[r][c + 1]) return false;
+        if (r < gridSize - 1 && grid[r][c] === grid[r + 1][c]) return false;
+      }
+    }
+    return true;
   }
+
   function showGameOver(isWin) {
-    gameOverTitle.textContent = isWin ? "恭喜你!" : "游戏结束!";
-    gameOverMessage.textContent = isWin ? `你成功达到了 2048! 最终得分: ${score}` : `你没有更多可移动的步数了。最终得分: ${score}`;
+    if (isWin) {
+      gameOverTitle.textContent = "恭喜你，达到了 2048!";
+      gameOverMessage.textContent = `你成功达到了 2048! 最终得分: ${score}`;
+      continueGameButton.classList.remove('hidden');
+    } else {
+      gameOverTitle.textContent = "游戏结束!";
+      gameOverMessage.textContent = `你没有更多可移动的步数了。最终得分: ${score}`;
+      continueGameButton.classList.add('hidden');
+    }
     gameOverModal.classList.add('show');
+  }
+
+  function continueGame() {
+    gameOverModal.classList.remove('show');
+    console.log("继续游戏...");
   }
 
   gameBoard.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; e.preventDefault(); }, { passive: false });
@@ -735,18 +913,16 @@
       addRandomTile(); renderBoard();
       if (checkGameOver()) showGameOver(false);
       if (score > bestScore) { bestScore = score; updateBestScoreDisplay(); }
-      saveGameState(); // 保存状态
+      saveGameState();
     }
   }
 
-  // 设置菜单的点击事件
   settingsGearButton.addEventListener('click', (event) => {
     settingsMenu.classList.toggle('hidden');
     settingsGearButton.classList.toggle('open');
-    event.stopPropagation(); // 防止点击事件冒泡到document
+    event.stopPropagation();
   });
 
-  // 点击菜单外部关闭菜单
   document.addEventListener('click', (event) => {
     if (!settingsMenu.classList.contains('hidden') &&
       !settingsMenu.contains(event.target) &&
@@ -759,21 +935,23 @@
 
   resetButton.addEventListener('click', initGame);
   restartGameButton.addEventListener('click', () => { gameOverModal.classList.remove('show'); initGame(); });
-  menuThemeToggleButton.addEventListener('click', toggleTheme); // 使用新的菜单按钮
-  menuFireworkToggleButton.addEventListener('click', toggleFireworkType); // 使用新的菜单按钮
-  undoButton.addEventListener('click', undoLastMove); // 新增：撤销按钮事件监听
+  continueGameButton.addEventListener('click', continueGame);
+  menuThemeToggleButton.addEventListener('click', toggleTheme);
+  menuFireworkToggleButton.addEventListener('click', toggleFireworkType);
+  undoButton.addEventListener('click', undoLastMove);
 
   applyTheme(currentTheme);
   applyFireworkType(currentFireworkType);
-  loadGame(); // 修改：页面加载时调用 loadGame 而不是 initGame
+  loadGame(); // 在这里加载游戏状态，这将触发 initGame 或加载保存的状态
+
   window.addEventListener('resize', () => {
-    if(gameBoard.clientWidth > 0) { // 确保有有效宽度再操作
+    if(gameBoard.clientWidth > 0) {
       createBackgroundGrid();
       renderBoard();
     }
   });
   requestAnimationFrame(() => {
-    if(gameBoard.clientWidth === 0) { // 如果初始宽度为0，等待下一帧
+    if(gameBoard.clientWidth === 0) {
       requestAnimationFrame(()=> {
         if(backgroundCellElements.length === 0) createBackgroundGrid();
         renderBoard();
